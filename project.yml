@@ -1,0 +1,125 @@
+name: BirthdayFreebies
+options:
+  deploymentTarget:
+    iOS: "17.0"
+  developmentLanguage: en
+  knownRegions: [en, zh-Hans, zh-Hant, ja]
+settings:
+  base:
+    APP_ID: com.hgsldswk.birthdayfreebies
+    APP_STORE_ID: "6839767880"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Automatic
+  configs:
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG"
+targets:
+  BirthdayFreebies:
+    type: application
+    platform: iOS
+    sources: [BirthdayFreebies, Shared]
+    dependencies:
+      - target: BirthdayFreebiesWidget
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_ID)
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: BirthdayFreebies AppStore
+    entitlements:
+      path: BirthdayFreebies/BirthdayFreebies.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.hgsldswk.birthdayfreebies]
+    info:
+      path: BirthdayFreebies/Info.plist
+      properties:
+        CFBundleDisplayName: Birthday Freebies
+        CFBundleDevelopmentRegion: en
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        APP_STORE_ID: $(APP_STORE_ID)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        ITSAppUsesNonExemptEncryption: false
+        CFBundleURLTypes:
+          - CFBundleURLName: com.hgsldswk.birthdayfreebies
+            CFBundleURLSchemes: [birthdayfreebies]
+  BirthdayFreebiesWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - BirthdayFreebiesWidget
+      - path: Shared
+        includes: [BirthdayDates.swift, OfferRules.swift, ChecklistState.swift, WidgetSnapshot.swift, L10n.swift, Localizable.xcstrings, Palette.swift]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_ID).widget
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: BirthdayFreebies Widget AppStore
+    entitlements:
+      path: BirthdayFreebiesWidget/BirthdayFreebiesWidget.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.hgsldswk.birthdayfreebies]
+    info:
+      path: BirthdayFreebiesWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Birthday Freebies
+        CFBundleDevelopmentRegion: en
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+  BirthdayFreebiesTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - BirthdayFreebiesTests
+      - Shared
+      - path: BirthdayFreebies
+        includes: [Ledger.swift, ShareImage.swift]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_ID).tests
+        GENERATE_INFOPLIST_FILE: YES
+  BirthdayFreebiesUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [BirthdayFreebiesUITests]
+    dependencies:
+      - target: BirthdayFreebies
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_ID).uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: BirthdayFreebies
+schemes:
+  BirthdayFreebies:
+    build:
+      targets:
+        BirthdayFreebies: all
+        BirthdayFreebiesTests: [test]
+    test:
+      config: Debug
+      targets: [BirthdayFreebiesTests]
+  BirthdayFreebiesUI:
+    build:
+      targets:
+        BirthdayFreebies: all
+        BirthdayFreebiesUITests: [test]
+    test:
+      config: Debug
+      targets: [BirthdayFreebiesUITests]
+

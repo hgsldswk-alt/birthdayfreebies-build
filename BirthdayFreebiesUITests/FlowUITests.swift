@@ -1,0 +1,165 @@
+import XCTest
+
+final class FlowUITests: XCTestCase {
+    private enum Scroll { case top, bottom }
+
+    private var app: XCUIApplication!
+
+    override func setUp() {
+        continueAfterFailure = false
+        executionTimeAllowance = 900
+        app = XCUIApplication()
+    }
+
+    private func launch(_ language: String = "en", seeded: Bool = false, screenshots: Bool = false,
+                        environment: [String: String] = [:]) {
+        let locale = ["en": "en_US", "zh-Hans": "zh_CN", "zh-Hant": "zh_TW", "ja": "ja_JP"][language] ?? "en_US"
+        app.launchArguments = ["-ui-testing", "-reset", "-AppleLanguages", "(\(language))", "-AppleLocale", locale]
+        if seeded { app.launchArguments.append("-seed") }
+        if screenshots { app.launchArguments.append("-shot") }
+        app.launchEnvironment = environment
+        app.launch()
+        XCTAssertTrue(app.buttons["home.add"].waitForExistence(timeout: 12))
+    }
+
+    @discardableResult private func tap(_ id: String, scroll: Scroll? = nil,
+                                        file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        let element = app.buttons.matching(identifier: id).firstMatch
+        _ = element.waitForExistence(timeout: 4)
+        if let scroll {
+            let scrollView = app.scrollViews.firstMatch
+            let surface: XCUIElement = scrollView.exists ? scrollView : app
+            for _ in 0..<5 where !element.exists || !element.isHittable {
+                switch scroll {
+                case .top: surface.swipeDown()
+                case .bottom: surface.swipeUp()
+                }
+                if !element.exists { _ = element.waitForExistence(timeout: 1) }
+            }
+        }
+        XCTAssertTrue(element.exists && element.isHittable, "Missing button \(id)", file: file, line: line)
+        element.tap()
+        return element
+    }
+
+    private func shot(_ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testPaidDownloadOpensChecklistAndNameOnlySave() {
+        launch()
+        tap("home.add")
+        let name = app.textFields["editor.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        name.typeText("Riverbend Bakery")
+        tap("editor.save")
+        tap("offer.detail.Riverbend Bakery", scroll: .bottom)
+        XCTAssertTrue(app.buttons["detail.edit"].waitForExistence(timeout: 5))
+    }
+
+    func testTemplateAddsImmediatelyAndCanUndoThisVisit() {
+        launch()
+        tap("home.starter")
+        tap("starter.starbucks")
+        XCTAssertTrue(app.buttons["starter.starbucks"].isSelected)
+        tap("starter.sephora")
+        XCTAssertTrue(app.buttons["starter.sephora"].isSelected)
+        tap("starter.starbucks")
+        XCTAssertFalse(app.buttons["starter.starbucks"].isSelected)
+        tap("nav.back")
+        XCTAssertTrue(app.buttons["offer.detail.Sephora"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["offer.detail.Starbucks"].exists)
+    }
+
+    func testSignUpDetailClaimUndoAndBackfill() {
+        launch(seeded: true)
+        tap("offer.signup.Starbucks", scroll: .bottom)
+        XCTAssertTrue(app.buttons["offer.undo"].waitForExistence(timeout: 5))
+        tap("offer.claim.Maple & Rye", scroll: .bottom)
+        tap("offer.undo")
+        XCTAssertTrue(app.buttons["offer.claim.Maple & Rye"].waitForExistence(timeout: 5))
+        let before = app.buttons["offer.detail.Maple & Rye"].frame.minY
+        tap("offer.detail.Maple & Rye")
+        XCTAssertTrue(app.staticTexts["Conditions"].waitForExistence(timeout: 5))
+        tap("nav.back")
+        XCTAssertEqual(app.buttons["offer.detail.Maple & Rye"].frame.minY, before, accuracy: 8)
+        tap("home.past", scroll: .top)
+        tap("offer.detail.Cedar Café")
+        tap("detail.record", scroll: .bottom)
+        XCTAssertTrue(app.buttons["offer.undo"].waitForExistence(timeout: 5))
+    }
+
+    func testDeniedNotificationsAndBirthdayCanBeEdited() {
+        launch()
+        tap("home.birthday")
+        tap("birthday.save_enable")
+        XCTAssertTrue(app.staticTexts["birthday.denied"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["birthday.system"].exists)
+        tap("nav.back")
+        tap("home.add")
+        XCTAssertTrue(app.textFields["editor.name"].waitForExistence(timeout: 5))
+    }
+
+    func testShareGeneratesContentAndHistoryCanBeReused() {
+        launch(seeded: true)
+        tap("home.stats")
+        tap("stats.share", scroll: .bottom)
+        XCTAssertTrue(app.staticTexts["share.requested"].waitForExistence(timeout: 10))
+        tap("stats.copy", scroll: .bottom)
+        XCTAssertTrue(app.staticTexts["Checklist code copied"].waitForExistence(timeout: 5))
+        tap("stats.history", scroll: .top)
+        tap("history.year.2025")
+        tap("offer.detail.Riverbend Bakery")
+        XCTAssertTrue(app.buttons["detail.edit"].waitForExistence(timeout: 5))
+        tap("nav.back")
+        tap("history.reuse")
+        XCTAssertTrue(app.buttons["home.add"].waitForExistence(timeout: 5))
+    }
+
+    func testImportPreviewSkipsExistingEntries() {
+        let json = #"{"v":1,"offers":[{"name":"Riverbend Bakery","gift":"Cake","signup":"no","endsOffset":1}]}"#
+        let encoded = Data(json.utf8).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        launch(environment: ["BFC_UI_CODE": "BFC1:" + encoded])
+        tap("home.import", scroll: .bottom)
+        tap("import.paste")
+        XCTAssertTrue(app.buttons["import.row.0"].waitForExistence(timeout: 5))
+        tap("import.add")
+        XCTAssertTrue(app.buttons["offer.detail.Riverbend Bakery"].waitForExistence(timeout: 5))
+        tap("home.import", scroll: .top)
+        tap("import.paste")
+        XCTAssertTrue(app.buttons["import.row.0"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["import.add"].isEnabled)
+    }
+
+    func testStoreScreenshots() { for language in ["en", "zh-Hans", "zh-Hant"] { storeShots(language) } }
+    func testStoreScreenshotsJa() { storeShots("ja") }
+
+    private func storeShots(_ language: String) {
+        do {
+            launch(language, seeded: true, screenshots: true)
+            shot("store-\(language)-01-home")
+            tap("home.starter")
+            XCTAssertTrue(app.buttons["starter.starbucks"].waitForExistence(timeout: 5))
+            shot("store-\(language)-02-starter")
+            tap("nav.back")
+            tap("home.add")
+            XCTAssertTrue(app.textFields["editor.name"].waitForExistence(timeout: 5))
+            shot("store-\(language)-03-add")
+            tap("nav.back")
+            tap("offer.detail.Starbucks", scroll: .bottom)
+            XCTAssertTrue(app.buttons["detail.edit"].waitForExistence(timeout: 5))
+            shot("store-\(language)-04-detail")
+            tap("nav.back")
+            tap("home.stats", scroll: .top)
+            XCTAssertTrue(app.buttons["stats.share"].waitForExistence(timeout: 5))
+            shot("store-\(language)-05-stats")
+            app.terminate()
+        }
+    }
+}
